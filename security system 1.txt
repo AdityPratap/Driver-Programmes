@@ -1,0 +1,117 @@
+import dlib
+from email import encoders, message
+from email.mime.base import MIMEBase
+from email.mime.nonmultipart import MIMENonMultipart
+from email.mime.text import MIMEText
+import smtplib
+import pyttsx3
+import cv2
+import numpy as np
+import csv
+import datetime
+import face_recognition
+import os
+import numpy as np
+import dlib
+from imutils import face_utils
+engine = pyttsx3.init("sapi5")
+voices = engine.getProperty('voices')
+engine.setProperty('voice',voices[0].id)
+def speak(audio):
+   engine.say(audio)
+   engine.runAndWait()
+cap = cv2.VideoCapture(0)
+f_image = face_recognition.load_image_file('samplefaces/aditya1.jpg')
+f_encoder = face_recognition.face_encodings(f_image)[0]
+#aman_image = face_recognition.load_image_file('samplefaces/aman.jpg')
+#aman_encoder = face_recognition.face_encodings(aman_image)[0]
+prerana_image = face_recognition.load_image_file('samplefaces/aman.jpg')
+prerana_encoder = face_recognition.face_encodings(prerana_image)[0]
+known_face_encodings = [f_encoder]
+known_face_names = ['Aditya']
+users = known_face_names.copy()
+face_encodings = []
+face_locations = []
+face_names = []
+s = True
+now = datetime.datetime.now()
+current_date = now.strftime('%Y-%M-%D')
+current_time = now.strftime('%H:%M:%S')
+f = open('driver_record'+'.csv','w+',newline='')
+writter = csv.writer(f)
+def sendemail(to,content):
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.ehlo()
+    server.starttls()
+    server.login('aditya76820101@gmail.com','jncfedgyzldbwaaa')
+    server.sendmail('aditya76820101@gmail.com',to,content)
+    server.close()
+while s:
+    _, frame = cap.read()
+    small_frame = cv2.resize(frame, (0,0), fx = 0.25, fy = 0.25)
+    rgb_frame = small_frame[:,:,::-1]
+    if s:
+        face_locations = face_recognition.face_locations(rgb_frame)
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+        face_names = []
+        for face_encoding in face_encodings:
+            matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
+            name = ""
+            face_distance = face_recognition.face_distance(known_face_encodings, face_encoding)
+            bestmatch = np.argmin(face_distance)
+            if matches[bestmatch]:
+                name = known_face_names[bestmatch]
+            face_names.append(name)
+            if name in known_face_names:
+                if name in users:
+                    print(users)
+                    users.remove(name)
+                    writter.writerow([current_date,name,current_time])
+                    break
+            else:
+                cap.set(3,680)
+                cap.set(4,480)
+                detector = dlib.get_frontal_face_detector()
+                predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
+                face_id = "unknown"
+                count = 0
+                while True:
+                    _, frame = cap.read()
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    faces = detector(gray)
+                    for face in faces:
+                        x1 = face.left()
+                        y1 = face.top()
+                        x2 = face.right()
+                        y2 = face.bottom()
+                        face_frame = frame.copy()
+                        cv2.rectangle(face_frame, (x1,y1), (x2,y2), (0,255,0), 2)
+                        count += 1
+                        f = cv2.imwrite("samplefaces/face." + str(face_id) + '.' + str(count) + ".jpg", gray[y1:y2, x1:x2])
+                        speak("User not verified.")
+            try:
+                to = "mallik00bis@gmail.com"
+                content = "An unknown user is trying to use your vechicle"
+                sendemail(to,content)
+                fpath = f"{f}"
+                msg = MIMENonMultipart()
+                msg['FROM'] = 'aditya76820101@gmail.com'
+                msg['to'] = to
+                msg['subject'] = "no reply"
+                msg.attach(MIMEText(message,'plain'))
+                filename = os.path.basename(f"C:\\Users\\adity\\OneDrive\\Desktop\\GUI\\{fpath}")
+                attachment = open(fpath,"rb")
+                part = MIMEBase('application','octet-stream')
+                part.set_payload(attachment.read())
+                encoders.encode_base64(part)
+                part.add_header("content - disposition","attachment;filename=%s"%filename)
+                msg.attach(part)
+                sendemail(to,content)
+            except:
+                break 
+    cv2.imshow("security system",frame)
+    if cv2.waitKey(1) & 0xff == ord('e'):
+        break
+cap.release()
+cv2.destroyAllWindows()
+f.close()
